@@ -11,6 +11,7 @@ import PlannerPage from '@/pages/PlannerPage';
 import CalendarPage from '@/pages/CalendarPage';
 import NotesPage from '@/pages/NotesPage';
 import SettingsPage from '@/pages/SettingsPage';
+import MomentsPage from '@/pages/MomentsPage';
 import GlobalSearch from '@/components/GlobalSearch';
 import TaskEditor from '@/components/TaskEditor';
 
@@ -38,6 +39,7 @@ export default function App() {
     } else if (type === 'event') {
       setTab('calendar');
     }
+    void replaceAll;
   };
 
   return (
@@ -65,6 +67,7 @@ export default function App() {
         {tab === 'home' && <HomePage data={data} update={update} onQuickAdd={handleQuickAdd} />}
         {tab === 'planner' && <PlannerPage data={data} update={update} />}
         {tab === 'calendar' && <CalendarPage data={data} update={update} />}
+        {tab === 'moments' && <MomentsPage />}
         {tab === 'notes' && <NotesPage data={data} update={update} />}
         {tab === 'settings' && <SettingsPage data={data} update={update} replaceAll={replaceAll} />}
       </main>

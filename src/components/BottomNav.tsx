@@ -1,6 +1,6 @@
-import { Home, Calendar, NotebookPen, StickyNote, Settings } from 'lucide-react';
+import { Home, Calendar, NotebookPen, StickyNote, Settings, Image } from 'lucide-react';
 
-export type Tab = 'home' | 'calendar' | 'planner' | 'notes' | 'settings';
+export type Tab = 'home' | 'calendar' | 'planner' | 'moments' | 'notes' | 'settings';
 
 interface BottomNavProps {
   active: Tab;
@@ -11,6 +11,7 @@ const items: { id: Tab; label: string; Icon: typeof Home }[] = [
   { id: 'home', label: 'Home', Icon: Home },
   { id: 'calendar', label: 'Calendar', Icon: Calendar },
   { id: 'planner', label: 'Planner', Icon: NotebookPen },
+  { id: 'moments', label: 'Moments', Icon: Image },
   { id: 'notes', label: 'Notes', Icon: StickyNote },
   { id: 'settings', label: 'Settings', Icon: Settings },
 ];
@@ -32,11 +33,11 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
               aria-label={label}
             >
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                   isActive ? 'bg-pink-primary text-white shadow-soft scale-105' : 'text-ink-muted'
                 }`}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.4 : 2} />
+                <Icon size={18} strokeWidth={isActive ? 2.4 : 2} />
               </div>
               <span
                 className={`text-[10px] font-medium transition-colors ${

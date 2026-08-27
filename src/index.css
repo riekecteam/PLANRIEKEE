@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  background-color: #FFF8FB;
+  color: #2B2B2B;
+  overscroll-behavior-y: none;
+}
+
+@layer components {
+  .app-scroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .btn-primary {
+    @apply bg-pink-primary text-white rounded-pill font-semibold transition-all active:scale-95 shadow-soft;
+  }
+  .btn-ghost {
+    @apply bg-pink-soft text-pink-primary rounded-pill font-semibold transition-all active:scale-95;
+  }
+  .card {
+    @apply bg-cream-card rounded-[20px] shadow-card;
+  }
+  .input-field {
+    @apply w-full bg-pink-soft/50 rounded-2xl px-4 py-3 text-ink outline-none focus:ring-2 focus:ring-pink-primary/30 transition-all placeholder:text-ink-muted/60;
+  }
+  .chip {
+    @apply px-3 py-1 rounded-pill text-xs font-medium transition-all;
+  }
+}
+
+/* Hide scrollbars but keep scrollable */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Strike-through animation for completed tasks */
+.task-done {
+  text-decoration: line-through;
+  color: #777777;
+  transition: all 0.2s ease;
+}

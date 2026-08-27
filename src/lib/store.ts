@@ -14,6 +14,7 @@ const emptyData: AppData = {
   daily: [],
   weekly: [],
   monthly: [],
+  tweets: [],
   settings: {
     name: 'Rieke',
     firstDayOfWeek: 'Monday',

@@ -67,7 +67,7 @@ export default function App() {
         {tab === 'home' && <HomePage data={data} update={update} onQuickAdd={handleQuickAdd} />}
         {tab === 'planner' && <PlannerPage data={data} update={update} />}
         {tab === 'calendar' && <CalendarPage data={data} update={update} />}
-        {tab === 'moments' && <MomentsPage />}
+        {tab === 'moments' && <MomentsPage data={data} update={update} />}
         {tab === 'notes' && <NotesPage data={data} update={update} />}
         {tab === 'settings' && <SettingsPage data={data} update={update} replaceAll={replaceAll} />}
       </main>

@@ -110,6 +110,13 @@ export interface Settings {
   onboarded: boolean;
 }
 
+export interface Tweet {
+  id: string;
+  text: string;
+  mood?: string;
+  createdAt: number;
+}
+
 export interface AppData {
   tasks: Task[];
   events: EventItem[];
@@ -121,5 +128,6 @@ export interface AppData {
   daily: DailyData[];
   weekly: WeeklyData[];
   monthly: MonthlyData[];
+  tweets: Tweet[];
   settings: Settings;
 }

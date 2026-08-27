@@ -378,12 +378,15 @@ function TweetCard({
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
 
-  let timeLabel: string;
-  if (diffMin < 1) timeLabel = 'now';
-  else if (diffMin < 60) timeLabel = `${diffMin}m`;
-  else if (diffHr < 24) timeLabel = `${diffHr}h`;
-  else if (diffDay < 7) timeLabel = `${diffDay}d`;
-  else timeLabel = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  let relTime: string;
+  if (diffMin < 1) relTime = 'now';
+  else if (diffMin < 60) relTime = `${diffMin}m`;
+  else if (diffHr < 24) relTime = `${diffHr}h`;
+  else if (diffDay < 7) relTime = `${diffDay}d`;
+  else relTime = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+
+  const fullDate = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const fullTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="card p-4 animate-slide-up relative">
@@ -398,7 +401,7 @@ function TweetCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-ink">Rieke</span>
-              <span className="text-xs text-ink-muted">@riieke · {timeLabel}</span>
+              <span className="text-xs text-ink-muted">@riieke · {relTime}</span>
             </div>
             <button
               onClick={onToggleMenu}
@@ -433,6 +436,11 @@ function TweetCard({
           {/* Text */}
           <p className="text-sm text-ink leading-relaxed whitespace-pre-wrap break-words mt-1">
             {tweet.text}
+          </p>
+
+          {/* Timestamp */}
+          <p className="text-xs text-ink-muted mt-1.5">
+            {fullDate} · {fullTime}
           </p>
 
           {/* Mood badge */}

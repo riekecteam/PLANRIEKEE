@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus, Trash2, Pencil, Camera, X, Heart, MoreHorizontal,
   Send, MessageCircle, Repeat2, Share,
+  Mic, Square, Play, Pause,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -10,9 +11,13 @@ import { uid } from '@/lib/store';
 import type { AppData, Tweet } from '@/types';
 import {
   type MomentRecord,
+  type VoiceRecord,
   getAllMoments,
   putMoment,
   deleteMoment,
+  getAllVoices,
+  putVoice,
+  deleteVoice,
   blobToURL,
   fileToBlob,
 } from '@/lib/photoStore';
@@ -29,7 +34,15 @@ interface MomentView {
   createdAt: number;
 }
 
-type SubTab = 'photos' | 'tweets';
+type SubTab = 'photos' | 'tweets' | 'voice';
+
+interface VoiceView {
+  id: string;
+  caption: string;
+  url: string;
+  duration: number;
+  createdAt: number;
+}
 
 export default function MomentsPage({ data, update }: MomentsPageProps) {
   const [subTab, setSubTab] = useState<SubTab>('tweets');
@@ -42,6 +55,11 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   const urlsRef = useRef<Set<string>>(new Set());
+
+  // Voice state
+  const [voices, setVoices] = useState<VoiceView[]>([]);
+  const [deleteVoiceId, setDeleteVoiceId] = useState<string | null>(null);
+  const [voiceMenuId, setVoiceMenuId] = useState<string | null>(null);
 
   // Tweet state
   const [tweetText, setTweetText] = useState('');
@@ -61,6 +79,16 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
       createdAt: r.createdAt,
     }));
     setMoments(views);
+
+    const voiceRecords = await getAllVoices();
+    const voiceViews: VoiceView[] = voiceRecords.map((r) => ({
+      id: r.id,
+      caption: r.caption,
+      url: blobToURL(r.blob),
+      duration: r.duration,
+      createdAt: r.createdAt,
+    }));
+    setVoices(voiceViews);
     setLoading(false);
   }, []);
 
@@ -137,6 +165,25 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
     setDeleteTweetId(null);
   };
 
+  // Voice handlers
+  const handleVoiceSave = async (blob: Blob, duration: number, caption: string) => {
+    const record: VoiceRecord = {
+      id: uid(),
+      caption: caption.trim(),
+      blob,
+      duration,
+      createdAt: Date.now(),
+    };
+    await putVoice(record);
+    refresh();
+  };
+
+  const handleVoiceDelete = async (id: string) => {
+    await deleteVoice(id);
+    setDeleteVoiceId(null);
+    refresh();
+  };
+
   return (
     <div className="px-4 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-4">
       <div className="flex items-center justify-between mb-4">
@@ -166,6 +213,14 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
           Cuitan
         </button>
         <button
+          onClick={() => setSubTab('voice')}
+          className={`flex-1 py-2 rounded-pill text-sm font-semibold transition-all ${
+            subTab === 'voice' ? 'bg-pink-primary text-white shadow-soft' : 'text-ink-muted'
+          }`}
+        >
+          Voice
+        </button>
+        <button
           onClick={() => setSubTab('photos')}
           className={`flex-1 py-2 rounded-pill text-sm font-semibold transition-all ${
             subTab === 'photos' ? 'bg-pink-primary text-white shadow-soft' : 'text-ink-muted'
@@ -188,6 +243,18 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
           setMenuId={setTweetMenuId}
           onEdit={(t) => { setTweetMenuId(null); setEditTweet(t); }}
           onDelete={(id) => { setTweetMenuId(null); setDeleteTweetId(id); }}
+        />
+      )}
+
+      {/* Voice tab */}
+      {subTab === 'voice' && (
+        <VoiceTab
+          voices={voices}
+          loading={loading}
+          onSave={handleVoiceSave}
+          menuId={voiceMenuId}
+          setMenuId={setVoiceMenuId}
+          onDelete={(id) => { setVoiceMenuId(null); setDeleteVoiceId(id); }}
         />
       )}
 
@@ -244,6 +311,14 @@ export default function MomentsPage({ data, update }: MomentsPageProps) {
         message="Are you sure you want to delete this cuitan?"
         onConfirm={() => deleteTweetId && deleteTweet(deleteTweetId)}
         onCancel={() => setDeleteTweetId(null)}
+      />
+
+      {/* Voice delete dialog */}
+      <ConfirmDialog
+        open={!!deleteVoiceId}
+        message="Are you sure you want to delete this voice recording?"
+        onConfirm={() => deleteVoiceId && handleVoiceDelete(deleteVoiceId)}
+        onCancel={() => setDeleteVoiceId(null)}
       />
     </div>
   );
@@ -794,6 +869,334 @@ function EditModal({
         />
       </div>
     </Modal>
+  );
+}
+
+// ─── VOICE TAB ───────────────────────────────────────────────
+
+function VoiceTab({
+  voices,
+  loading,
+  onSave,
+  menuId,
+  setMenuId,
+  onDelete,
+}: {
+  voices: VoiceView[];
+  loading: boolean;
+  onSave: (blob: Blob, duration: number, caption: string) => void;
+  menuId: string | null;
+  setMenuId: (id: string | null) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState('');
+  const [recordDuration, setRecordDuration] = useState(0);
+  const [caption, setCaption] = useState('');
+  const [elapsed, setElapsed] = useState(0);
+  const [error, setError] = useState('');
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startRecording = async () => {
+    setError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      chunksRef.current = [];
+
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        setRecordDuration(elapsed);
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+        }
+      };
+
+      mr.start();
+      setRecording(true);
+      setElapsed(0);
+      timerRef.current = setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      setError('Microphone access denied. Please allow microphone permission.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleSave = () => {
+    if (!recordedBlob) return;
+    onSave(recordedBlob, recordDuration, caption);
+    setRecordedBlob(null);
+    setRecordedUrl('');
+    setCaption('');
+    setRecordDuration(0);
+  };
+
+  const handleDiscard = () => {
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl('');
+    setCaption('');
+    setRecordDuration(0);
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="animate-fade-in">
+      {/* Recorder card */}
+      <div className="card p-5 mb-4">
+        {!recordedBlob ? (
+          <div className="flex flex-col items-center gap-4">
+            {/* Record button */}
+            <button
+              onClick={recording ? stopRecording : startRecording}
+              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                recording
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : 'bg-pink-primary text-white shadow-soft'
+              }`}
+              aria-label={recording ? 'Stop recording' : 'Start recording'}
+            >
+              {recording ? <Square size={28} fill="white" /> : <Mic size={30} />}
+            </button>
+
+            {/* Timer / label */}
+            {recording ? (
+              <div className="text-center">
+                <p className="text-lg font-bold text-red-500 tabular-nums">{formatTime(elapsed)}</p>
+                <p className="text-xs text-ink-muted mt-0.5">Recording... tap to stop</p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-sm font-semibold text-ink">Record your curhat</p>
+                <p className="text-xs text-ink-muted mt-0.5">Tap the mic to start recording</p>
+              </div>
+            )}
+
+            {error && (
+              <p className="text-xs text-red-500 text-center">{error}</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Preview */}
+            <div className="flex items-center gap-3 bg-pink-soft/30 rounded-2xl p-3">
+              <div className="w-10 h-10 rounded-full bg-pink-primary text-white flex items-center justify-center flex-shrink-0">
+                <Mic size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-ink">Voice recording</p>
+                <p className="text-xs text-ink-muted">{formatTime(recordDuration)} duration</p>
+              </div>
+            </div>
+
+            <audio src={recordedUrl} controls className="w-full" />
+
+            {/* Caption */}
+            <div>
+              <label className="text-xs font-medium text-ink-muted mb-1.5 block">Caption (optional)</label>
+              <textarea
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Give your curhat a title..."
+                rows={2}
+                className="input-field resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleDiscard}
+                className="flex-1 py-3 rounded-pill bg-pink-soft text-pink-primary font-semibold active:scale-95 transition-transform"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 py-3 rounded-pill bg-pink-primary text-white font-semibold active:scale-95 transition-transform shadow-soft"
+              >
+                Post
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Voice timeline */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-2 border-pink-soft border-t-pink-primary rounded-full animate-spin" />
+        </div>
+      ) : voices.length === 0 ? (
+        <EmptyState
+          title="No voice curhat yet 💗"
+          subtitle="Record your thoughts and feelings. Sometimes it's easier to say it out loud."
+        />
+      ) : (
+        <div className="space-y-3">
+          {voices.map((v) => (
+            <VoiceCard
+              key={v.id}
+              voice={v}
+              menuOpen={menuId === v.id}
+              onToggleMenu={() => setMenuId(menuId === v.id ? null : v.id)}
+              onDelete={() => onDelete(v.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VoiceCard({
+  voice,
+  menuOpen,
+  onToggleMenu,
+  onDelete,
+}: {
+  voice: VoiceView;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onDelete: () => void;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const date = new Date(voice.createdAt);
+  const dateStr = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  const formatDuration = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (playing) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  return (
+    <div className="card p-4 animate-slide-up relative">
+      <div className="flex gap-3">
+        {/* Avatar */}
+        <div className="w-10 h-10 rounded-full bg-pink-primary text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+          R
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold text-ink">Rieke</span>
+              <span className="text-xs text-ink-muted ml-1.5">{dateStr} · {timeStr}</span>
+            </div>
+            <button
+              onClick={onToggleMenu}
+              className="w-7 h-7 -mr-1 rounded-full flex items-center justify-center text-ink-muted hover:bg-pink-soft active:scale-90 transition-all"
+              aria-label="Options"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+          </div>
+
+          {/* Menu */}
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={onToggleMenu} />
+              <div className="absolute right-2 top-10 z-50 bg-cream-card rounded-2xl shadow-float border border-pink-soft overflow-hidden animate-scale-in">
+                <button
+                  onClick={onDelete}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 w-full text-left"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Caption */}
+          {voice.caption && (
+            <p className="text-sm text-ink leading-relaxed mt-1">{voice.caption}</p>
+          )}
+
+          {/* Audio player */}
+          <div className="flex items-center gap-3 mt-2.5 bg-pink-soft/30 rounded-2xl p-3">
+            <button
+              onClick={togglePlay}
+              className="w-10 h-10 rounded-full bg-pink-primary text-white flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
+              aria-label={playing ? 'Pause' : 'Play'}
+            >
+              {playing ? <Pause size={18} fill="white" /> : <Play size={18} fill="white" />}
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <Mic size={13} className="text-pink-primary flex-shrink-0" />
+                <span className="text-xs font-medium text-ink-muted">Voice curhat</span>
+              </div>
+              <span className="text-xs text-ink-muted">{formatDuration(voice.duration)}</span>
+            </div>
+          </div>
+
+          <audio
+            ref={audioRef}
+            src={voice.url}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => setPlaying(false)}
+            className="hidden"
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
